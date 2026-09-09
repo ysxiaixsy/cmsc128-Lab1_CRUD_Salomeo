@@ -198,11 +198,21 @@ out as a comment in `firestore.rules`.
 
 ## Screenshots
 
-<!-- TODO: replace with real screenshots -->
-| Task list | Add / edit task | Delete confirmation |
-|---|---|---|
-| _(screenshot)_ | _(screenshot)_ | _(screenshot)_ |
+Captured on a physical Android device.
 
-| Filter sheet | Undo snackbar | Empty state |
+| Task list | Add task | Edit task |
 |---|---|---|
-| _(screenshot)_ | _(screenshot)_ | _(screenshot)_ |
+| ![Task list](screenshots/task-list.png) | ![Add task](screenshots/add-task.png) | ![Edit task](screenshots/edit-task.png) |
+
+| Delete confirmation | Undo snackbar | Filter sheet |
+|---|---|---|
+| ![Delete confirmation](screenshots/delete-confirm.png) | ![Undo delete](screenshots/undo-delete.png) | ![Filter sheet](screenshots/filter-sheet.png) |
+
+| Sort menu | Empty state |
+|---|---|
+| ![Sort menu](screenshots/sort-menu.png) | ![Empty state](screenshots/empty-state.png) |
+
+Note the design details visible above: overdue tasks show their due date in red
+with an "Overdue" label, priority and tag are colour-coded chips, the bar under
+the app bar always states the active sort and how many tasks are shown, and
+every action produces a snackbar.

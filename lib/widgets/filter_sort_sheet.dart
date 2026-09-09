@@ -33,93 +33,99 @@ class _FilterSheetState extends State<_FilterSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Filter tasks', style: theme.textTheme.titleLarge),
-          const SizedBox(height: 20),
+    // SafeArea keeps the action buttons clear of the system navigation bar,
+    // and the scroll view stops the sheet clipping its own content on short
+    // screens or when the keyboard is up.
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Filter tasks', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 20),
 
-          Text('Tag', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('All'),
-                selected: _draft.tag == null,
-                onSelected: (_) =>
-                    setState(() => _draft = _draft.copyWith(clearTag: true)),
-              ),
-              for (final tag in TaskTag.values)
+            Text('Tag', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
                 ChoiceChip(
-                  avatar: Icon(tagIcon(tag), size: 16),
-                  label: Text(tag.label),
-                  selected: _draft.tag == tag,
+                  label: const Text('All'),
+                  selected: _draft.tag == null,
                   onSelected: (_) =>
-                      setState(() => _draft = _draft.copyWith(tag: tag)),
+                      setState(() => _draft = _draft.copyWith(clearTag: true)),
                 ),
-            ],
-          ),
-          const SizedBox(height: 20),
+                for (final tag in TaskTag.values)
+                  ChoiceChip(
+                    avatar: Icon(tagIcon(tag), size: 16),
+                    label: Text(tag.label),
+                    selected: _draft.tag == tag,
+                    onSelected: (_) =>
+                        setState(() => _draft = _draft.copyWith(tag: tag)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
 
-          Text('Priority', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('All'),
-                selected: _draft.priority == null,
-                onSelected: (_) => setState(
-                    () => _draft = _draft.copyWith(clearPriority: true)),
-              ),
-              for (final p in Priority.values)
+            Text('Priority', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
                 ChoiceChip(
-                  label: Text(p.label),
-                  selected: _draft.priority == p,
-                  selectedColor: priorityColor(p).withValues(alpha: 0.25),
-                  onSelected: (_) =>
-                      setState(() => _draft = _draft.copyWith(priority: p)),
+                  label: const Text('All'),
+                  selected: _draft.priority == null,
+                  onSelected: (_) => setState(
+                    () => _draft = _draft.copyWith(clearPriority: true),
+                  ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
+                for (final p in Priority.values)
+                  ChoiceChip(
+                    label: Text(p.label),
+                    selected: _draft.priority == p,
+                    selectedColor: priorityColor(p).withValues(alpha: 0.25),
+                    onSelected: (_) =>
+                        setState(() => _draft = _draft.copyWith(priority: p)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
 
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Hide completed tasks'),
-            value: _draft.hideCompleted,
-            onChanged: (v) =>
-                setState(() => _draft = _draft.copyWith(hideCompleted: v)),
-          ),
-          const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Hide completed tasks'),
+              value: _draft.hideCompleted,
+              onChanged: (v) =>
+                  setState(() => _draft = _draft.copyWith(hideCompleted: v)),
+            ),
+            const SizedBox(height: 8),
 
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () =>
-                      Navigator.pop(context, const FilterState()),
-                  child: const Text('Clear all'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () =>
+                        Navigator.pop(context, const FilterState()),
+                    child: const Text('Clear all'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(context, _draft),
-                  child: const Text('Apply'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context, _draft),
+                    child: const Text('Apply'),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
