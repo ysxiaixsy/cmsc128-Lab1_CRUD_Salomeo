@@ -202,15 +202,15 @@ Captured on a physical Android device.
 
 | Task list | Add task | Edit task |
 |---|---|---|
-| ![Task list](screenshots/task-list.png) | ![Add task](screenshots/add-task.png) | ![Edit task](screenshots/edit-task.png) |
+| ![Task list](screenshots/task-list.jpg) | ![Add task](screenshots/add-task.jpg) | ![Edit task](screenshots/edit-task.jpg) |
 
-| Delete confirmation | Undo snackbar | Filter sheet |
+| Delete confirmation | Undo snackbar | Task restored |
 |---|---|---|
-| ![Delete confirmation](screenshots/delete-confirm.png) | ![Undo delete](screenshots/undo-delete.png) | ![Filter sheet](screenshots/filter-sheet.png) |
+| ![Delete confirmation](screenshots/delete-confirm.jpg) | ![Undo delete](screenshots/undo-delete.jpg) | ![Task restored](screenshots/task-restored.jpg) |
 
-| Sort menu | Empty state |
-|---|---|
-| ![Sort menu](screenshots/sort-menu.png) | ![Empty state](screenshots/empty-state.png) |
+| Filter sheet | Sort menu | Empty state |
+|---|---|---|
+| ![Filter sheet](screenshots/filter-sheet.jpg) | ![Sort menu](screenshots/sort-menu.jpg) | ![Empty state](screenshots/empty-state.jpg) |
 
 Note the design details visible above: overdue tasks show their due date in red
 with an "Overdue" label, priority and tag are colour-coded chips, the bar under
