@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// Security rules for the CMSC 128 Lab 1 To-Do List app.
+//
+// WHY THIS FILE EXISTS
+// --------------------
+// Firestore config (API key, app ID) is public by design — it ships inside
+// every compiled copy of the app and cannot be hidden. These rules, not the
+// API key, are what actually control who may read and write the database.
+// That is why this file is committed while firebase_options.dart is not.
+//
+// To apply changes made here:
+//   firebase deploy --only firestore:rules
+// or paste the contents into Firebase Console -> Firestore Database -> Rules.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /tasks/{taskId} {
+      // Lab 1 has no user accounts yet, so every client is anonymous and the
+      // collection is intentionally open. This replaces Firebase's default
+      // "test mode" rules, which silently EXPIRE after 30 days and then deny
+      // every request — which would break the app with no code change.
+      //
+      // Assign 2 adds authentication and Assign 3 restricts each user to their
+      // own list. At that point this single line becomes:
+      //
+      //   allow read: if request.auth != null
+      //               && request.auth.uid == resource.data.ownerId;
+      //   allow create: if request.auth != null
+      //                 && request.auth.uid == request.resource.data.ownerId;
+      //   allow update, delete: if request.auth != null
+      //                         && request.auth.uid == resource.data.ownerId;
+      allow read, write: if true;
+    }
+
+    // Anything not matched above is denied. Firestore rules do not cascade,
+    // so a collection with no rule is unreadable and unwritable by default.
+  }
+}
