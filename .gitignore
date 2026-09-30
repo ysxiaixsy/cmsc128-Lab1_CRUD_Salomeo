@@ -64,3 +64,10 @@ firestore-debug.log
 .env
 .env.*
 !.env.example
+
+# Firebase Auth exports (`firebase auth:export`). They contain password
+# hashes and salts, so they must never be committed. Export to a folder
+# outside the repo; these patterns are a safety net.
+accounts*.json
+accounts*.csv
+auth-export*/
