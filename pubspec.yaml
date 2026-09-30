@@ -1,5 +1,5 @@
 name: cmsc128_lab1_crud_salomeo
-description: "CMSC 128 Lab 1 — a To-Do List app with full CRUD, built with Flutter and Cloud Firestore."
+description: "CMSC 128 — My Tasks: a to-do list app with user accounts, built with Flutter, Firebase Authentication and Cloud Firestore."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -37,6 +37,7 @@ dependencies:
   firebase_core: ^4.14.0
   cloud_firestore: ^6.9.0
   intl: ^0.20.3
+  firebase_auth: ^6.7.0
 
 dev_dependencies:
   flutter_test:
