@@ -1,37 +1,44 @@
 rules_version = '2';
 
-// Security rules for the CMSC 128 Lab 1 To-Do List app.
+// Security rules for the CMSC 128 My Tasks app (Lab 2: accounts).
 //
 // WHY THIS FILE EXISTS
 // --------------------
 // Firestore config (API key, app ID) is public by design — it ships inside
 // every compiled copy of the app and cannot be hidden. These rules, not the
 // API key, are what actually control who may read and write the database.
-// That is why this file is committed while firebase_options.dart is not.
+// Google's servers check them on EVERY request, so a modified app cannot skip
+// them the way it could skip a check written in Dart.
 //
 // To apply changes made here:
-//   firebase deploy --only firestore:rules
+//   firebase deploy --only firestore:rules --project jp-todo
 // or paste the contents into Firebase Console -> Firestore Database -> Rules.
+//
+// WHERE ARE THE ACCOUNTS?
+// -----------------------
+// Not in Firestore. Accounts (UID, email, display name, password hash) live in
+// Firebase Authentication, which has its own storage and is not governed by
+// this file. Firestore only sees the result: `request.auth` is filled in when
+// the request comes from a signed-in user, and is null otherwise.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /tasks/{taskId} {
-      // Lab 1 has no user accounts yet, so every client is anonymous and the
-      // collection is intentionally open. This replaces Firebase's default
-      // "test mode" rules, which silently EXPIRE after 30 days and then deny
-      // every request — which would break the app with no code change.
+      // Lab 2: only signed-in users may read or write tasks. The app already
+      // hides the task list until someone signs in; this rule makes the
+      // server enforce the same thing, so a request without a valid sign-in
+      // token is rejected even if it does not come from our app.
       //
-      // Assign 2 adds authentication and Assign 3 restricts each user to their
-      // own list. At that point this single line becomes:
+      // All signed-in users still share one list. Lab 3 (owner-based access
+      // control) gives every task an `ownerId` equal to its creator's UID and
+      // tightens this to:
       //
-      //   allow read: if request.auth != null
-      //               && request.auth.uid == resource.data.ownerId;
+      //   allow read, update, delete: if request.auth != null
+      //                               && request.auth.uid == resource.data.ownerId;
       //   allow create: if request.auth != null
-      //                 && request.auth.uid == request.resource.data.ownerId;
-      //   allow update, delete: if request.auth != null
-      //                         && request.auth.uid == resource.data.ownerId;
-      allow read, write: if true;
+      //              && request.auth.uid == request.resource.data.ownerId;
+      allow read, write: if request.auth != null;
     }
 
     // Anything not matched above is denied. Firestore rules do not cascade,
