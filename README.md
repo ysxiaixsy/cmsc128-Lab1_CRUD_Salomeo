@@ -390,6 +390,40 @@ service-account key or reset secret anywhere in the code.
 
 ---
 
+## Screenshots (Lab 2)
+
+Captured on a physical Android device.
+
+**Signing in, and the protected pages**
+
+| Sign in | Profile ("Hello, *name*") | Task list, signed in |
+|---|---|---|
+| ![Sign-in screen](screenshots/sign-in.jpg) | ![Profile page](screenshots/profile.jpg) | ![Task list with the user's initials in the app bar](screenshots/task-list-signed-in.jpg) |
+
+**Registration validation**: each rule is explained under its field before anything is sent.
+
+| Missing password | Password too short | Passwords don't match |
+|---|---|---|
+| ![Password is required](screenshots/register-missing-password.jpg) | ![Use at least 8 characters](screenshots/register-short-password.jpg) | ![Passwords do not match](screenshots/register-passwords-mismatch.jpg) |
+
+**Changing the email, end to end** (read left to right, then the next row).
+
+| 1. Wrong current password | 2. Correct password: link sent | 3. Link clicked (Firebase's page) |
+|---|---|---|
+| ![Your current password is incorrect](screenshots/change-email-wrong-password.jpg) | ![Check your new inbox dialog](screenshots/change-email-check-inbox.jpg) | ![Your email has been verified and changed](screenshots/email-change-confirmed.jpg) |
+
+| 4. App signs out the old session | 5. Signed in with the new email | Password reset link sent |
+|---|---|---|
+| ![Your sign-in details changed. Please sign in again.](screenshots/signed-out-after-email-change.jpg) | ![Profile showing the new email](screenshots/profile-after-email-change.jpg) | ![Check your email after Forgot password](screenshots/reset-link-sent.jpg) |
+
+**Unsaved changes are never silently discarded**
+
+| Edit name | Change email | Change password |
+|---|---|---|
+| ![Discard changes dialog on Edit name](screenshots/discard-name.jpg) | ![Discard changes dialog on Change email](screenshots/discard-email.jpg) | ![Discard changes dialog on Change password](screenshots/discard-password.jpg) |
+
+---
+
 ## Lab 1: task data operations
 
 All task operations live in `lib/services/task_service.dart`.
