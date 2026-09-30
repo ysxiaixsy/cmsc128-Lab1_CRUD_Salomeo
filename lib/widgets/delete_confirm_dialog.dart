@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Asks the user to confirm a delete.
 ///
-/// Returns `true` only if the user explicitly pressed Delete. Tapping Cancel or
-/// tapping outside the dialog returns null, which the caller treats as "no".
+/// Returns `true` only if the user explicitly pressed Delete. Cancel returns
+/// false and tapping outside the dialog returns null; the caller treats
+/// anything other than true as "no".
 /// This is the "no destructive action without confirmation" requirement — the
 /// delete in HomeScreen literally cannot run unless this resolves to true.
 Future<bool?> showDeleteConfirmDialog(

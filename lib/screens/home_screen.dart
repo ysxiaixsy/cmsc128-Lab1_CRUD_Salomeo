@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../logic/account_labels.dart';
 import '../logic/task_filter.dart';
 import '../models/task.dart';
+import '../services/auth_service.dart';
 import '../services/task_service.dart';
 import '../theme.dart';
 import '../widgets/delete_confirm_dialog.dart';
@@ -20,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TaskService _service = TaskService();
+  final AuthService _auth = AuthService();
 
   FilterState _filter = const FilterState();
   SortOption _sort = SortOption.dateAdded;
@@ -126,6 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'Filter tasks',
             onPressed: _openFilters,
           ),
+          _AccountButton(user: _auth.currentUser),
         ],
       ),
 
@@ -314,6 +319,38 @@ class _Message extends StatelessWidget {
               action!,
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The signed-in user's initials in the AppBar, so it is always obvious whose
+/// session this is. The task list is opened from the Profile page, so tapping
+/// this simply goes back to it.
+class _AccountButton extends StatelessWidget {
+  const _AccountButton({required this.user});
+
+  final User? user;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final name = nameToShow(displayName: user?.displayName, email: user?.email);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: IconButton(
+        tooltip: 'Signed in as $name. Open my account',
+        onPressed: () => Navigator.pop(context),
+        icon: CircleAvatar(
+          radius: 15,
+          backgroundColor: scheme.onPrimary,
+          foregroundColor: scheme.primary,
+          child: Text(
+            initialsOf(name),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );
