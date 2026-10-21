@@ -71,3 +71,7 @@ firestore-debug.log
 accounts*.json
 accounts*.csv
 auth-export*/
+
+# Rule tests (rules-tests/): installed packages and emulator logs.
+rules-tests/node_modules/
+ui-debug.log
