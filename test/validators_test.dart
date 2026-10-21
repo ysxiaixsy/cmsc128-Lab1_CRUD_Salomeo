@@ -112,6 +112,18 @@ void main() {
     });
   });
 
+  group('validateListName', () {
+    test('requires a non-blank name', () {
+      expect(validateListName(''), 'Give the list a name');
+      expect(validateListName('   '), 'Give the list a name');
+    });
+
+    test('limits the length', () {
+      expect(validateListName('a' * kMaxListNameLength), isNull);
+      expect(validateListName('a' * (kMaxListNameLength + 1)), isNotNull);
+    });
+  });
+
   group('nameToShow', () {
     test('prefers the display name', () {
       expect(nameToShow(displayName: 'JP', email: 'jp@x.com'), 'JP');
