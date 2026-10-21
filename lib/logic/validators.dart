@@ -93,3 +93,15 @@ String? validatePasswordConfirmation(String? value, String password) {
   if (value != password) return 'Passwords do not match';
   return null;
 }
+
+const int kMaxListNameLength = 40;
+
+/// For naming a shared list.
+String? validateListName(String? value) {
+  final name = value?.trim() ?? '';
+  if (name.isEmpty) return 'Give the list a name';
+  if (name.length > kMaxListNameLength) {
+    return 'Keep the name under $kMaxListNameLength characters';
+  }
+  return null;
+}

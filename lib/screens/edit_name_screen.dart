@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../logic/auth_errors.dart';
 import '../logic/validators.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import '../widgets/discard_changes_guard.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/submit_button.dart';
@@ -42,6 +43,15 @@ class _EditNameScreenState extends State<EditNameScreen> {
     setState(() => _busy = true);
     try {
       await _auth.updateDisplayName(_nameController.text.trim());
+
+      // Shared lists show members' names from the user directory, so update
+      // it too. Best effort: the next sign-in syncs it anyway.
+      final user = _auth.currentUser;
+      if (user != null) {
+        try {
+          await UserService().syncProfile(user);
+        } catch (_) {}
+      }
       if (!mounted) return;
       // The message is shown by ProfileScreen, which is underneath.
       Navigator.pop(context, 'Name updated');

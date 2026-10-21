@@ -1,32 +1,73 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../logic/account_labels.dart';
 import '../logic/task_filter.dart';
 import '../models/task.dart';
+import '../models/task_list.dart';
 import '../services/auth_service.dart';
+import '../services/list_service.dart';
 import '../services/task_service.dart';
 import '../theme.dart';
 import '../widgets/delete_confirm_dialog.dart';
 import '../widgets/filter_sort_sheet.dart';
+import '../widgets/list_drawer.dart';
+import '../widgets/new_list_dialog.dart';
 import '../widgets/task_tile.dart';
+import 'members_screen.dart';
+import 'profile_screen.dart';
 import 'task_form_screen.dart';
 
-/// The main list screen. Owns the filter/sort state and wires every user
-/// action to a [TaskService] call.
+/// The main screen once signed in: one task list at a time.
+///
+/// It shows either the user's Personal list or one shared list, chosen from
+/// the drawer. It owns the filter/sort state and wires every user action to a
+/// [TaskService] call. Every [TaskService] it creates is scoped to [uid], the
+/// signed-in user, which is how a user only ever sees their own tasks (plus
+/// the shared lists they belong to).
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, required this.uid});
+
+  /// The signed-in user's UID, handed over by AuthGate.
+  final String uid;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TaskService _service = TaskService();
   final AuthService _auth = AuthService();
+  final ListService _lists = ListService();
+
+  /// Every shared list this user belongs to, live, for the drawer.
+  late final Stream<List<TaskList>> _myLists = _lists.watchMyLists(widget.uid);
+
+  /// The list on screen: null means Personal.
+  TaskList? _list;
+
+  /// The service and task stream for the list on screen. Both are made in
+  /// [_useList], once per list, not in build(): build runs often, and a new
+  /// stream every time would restart the database listener.
+  late TaskService _service;
+  late Stream<List<Task>> _tasks;
 
   FilterState _filter = const FilterState();
   SortOption _sort = SortOption.dateAdded;
+
+  @override
+  void initState() {
+    super.initState();
+    _useList(null);
+  }
+
+  void _useList(TaskList? list) {
+    _list = list;
+    _service = list == null
+        ? TaskService.personal(uid: widget.uid)
+        : TaskService.sharedList(uid: widget.uid, listId: list.id);
+    _tasks = _service.watchTasks();
+  }
+
+  void _switchTo(TaskList? list) => setState(() => _useList(list));
 
   void _snack(String message, {bool isError = false}) {
     if (!mounted) return;
@@ -46,7 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openForm({Task? existing}) async {
     final result = await Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (_) => TaskFormScreen(existing: existing)),
+      MaterialPageRoute(
+        builder: (_) => TaskFormScreen(existing: existing, service: _service),
+      ),
     );
     if (!mounted || result == null) return;
     _snack(result == 'created' ? 'Task added' : 'Task updated');
@@ -70,8 +113,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final confirmed = await showDeleteConfirmDialog(context, task.title);
     if (confirmed != true || !mounted) return;
 
+    // Captured now, so Undo restores into the list the task came from even if
+    // the user switches lists while the snackbar is showing.
+    final service = _service;
     try {
-      await _service.deleteTask(task.id);
+      await service.deleteTask(task.id);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context)
@@ -84,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'UNDO',
               onPressed: () async {
                 try {
-                  await _service.restoreTask(task);
+                  await service.restoreTask(task);
                   _snack('Task restored');
                 } catch (error) {
                   _snack('Could not restore: $error', isError: true);
@@ -104,14 +150,117 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _filter = result);
   }
 
+  Future<void> _createList() async {
+    Navigator.pop(context); // close the drawer
+    final name = await showNewListDialog(context);
+    if (name == null || !mounted) return;
+    try {
+      final id = await _lists.createList(ownerId: widget.uid, name: name);
+      _switchTo(TaskList(
+        id: id,
+        name: name,
+        ownerId: widget.uid,
+        memberIds: [widget.uid],
+      ));
+      _snack('Created "$name". Open Members to add people.');
+    } catch (error) {
+      _snack('Could not create the list: $error', isError: true);
+    }
+  }
+
+  Future<void> _openMembers(TaskList list) async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MembersScreen(listId: list.id, uid: widget.uid),
+      ),
+    );
+    if (!mounted) return;
+    if (result == 'deleted') {
+      _switchTo(null);
+      _snack('Deleted "${list.name}"');
+    }
+  }
+
+  void _openAccount() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+  }
+
+  Future<void> _logOut() async {
+    final messenger = ScaffoldMessenger.of(context);
+    await _auth.signOut();
+    // AuthGate now swaps in the sign-in screen.
+    messenger.showSnackBar(
+      const SnackBar(content: Text('You have been logged out.')),
+    );
+  }
+
   // ------------------------------------------------------------- build ---
 
   @override
   Widget build(BuildContext context) {
+    // The drawer and the title need the user's lists, so the whole screen
+    // listens to them. A rename or a new member shows up live.
+    return StreamBuilder<List<TaskList>>(
+      stream: _myLists,
+      builder: (context, listsSnapshot) {
+        final lists = listsSnapshot.data ?? const <TaskList>[];
+        final current = _currentList(lists, loaded: listsSnapshot.hasData);
+        return _buildScaffold(context, lists, current);
+      },
+    );
+  }
+
+  /// The freshest copy of the list on screen. Returns null for Personal, and
+  /// also when the shared list is no longer in the user's lists (deleted, or
+  /// the owner removed them); [_lostAccess] tells those two apart.
+  TaskList? _currentList(List<TaskList> lists, {required bool loaded}) {
+    final selected = _list;
+    if (selected == null) return null;
+    for (final list in lists) {
+      if (list.id == selected.id) return list;
+    }
+    // Not loaded yet: keep showing what we have rather than a false alarm.
+    return loaded ? null : selected;
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    List<TaskList> lists,
+    TaskList? current,
+  ) {
+    final user = _auth.currentUser;
+    final userName = nameToShow(displayName: user?.displayName, email: user?.email);
+    // A shared list was selected but is no longer one of the user's lists.
+    final lostAccess = current == null && _list != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Tasks'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(current?.name ?? 'My Tasks'),
+            Text(
+              current != null
+                  ? 'Shared list · ${current.memberIds.length} members'
+                  : 'Personal · only you can see these',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+            ),
+          ],
+        ),
         actions: [
+          if (current != null)
+            IconButton(
+              icon: const Icon(Icons.group_outlined),
+              tooltip: 'Members',
+              onPressed: () => _openMembers(current),
+            ),
           PopupMenuButton<SortOption>(
             icon: const Icon(Icons.sort),
             tooltip: 'Sort by',
@@ -130,87 +279,133 @@ class _HomeScreenState extends State<HomeScreen> {
             tooltip: 'Filter tasks',
             onPressed: _openFilters,
           ),
-          _AccountButton(user: _auth.currentUser),
+          _AccountButton(name: userName, onPressed: _openAccount),
         ],
       ),
 
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Task'),
-      ),
-
-      // StreamBuilder listens to Firestore. Every database change pushes a new
-      // snapshot and rebuilds this subtree — no manual refresh anywhere.
-      body: StreamBuilder<List<Task>>(
-        stream: _service.watchTasks(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return _Message(
-              icon: Icons.cloud_off,
-              title: 'Could not load tasks',
-              subtitle: '${snapshot.error}',
-              isError: true,
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final allTasks = snapshot.data ?? const <Task>[];
-
-          if (allTasks.isEmpty) {
-            return const _Message(
-              icon: Icons.checklist_rtl,
-              title: 'No tasks yet',
-              subtitle: 'Tap "Add Task" below to create your first one.',
-            );
-          }
-
-          // Filtering and sorting happen here, in Dart — not in the query.
-          final visible = applyFilterAndSort(allTasks, _filter, _sort);
-
-          return Column(
-            children: [
-              _SortBar(
-                sort: _sort,
-                filter: _filter,
-                shown: visible.length,
-                total: allTasks.length,
-                onClearFilters: () =>
-                    setState(() => _filter = const FilterState()),
-              ),
-              Expanded(
-                child: visible.isEmpty
-                    ? _Message(
-                        icon: Icons.filter_alt_off,
-                        title: 'No tasks match your filters',
-                        subtitle: '${allTasks.length} task(s) are hidden.',
-                        action: FilledButton.tonal(
-                          onPressed: () =>
-                              setState(() => _filter = const FilterState()),
-                          child: const Text('Clear filters'),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 88),
-                        itemCount: visible.length,
-                        itemBuilder: (context, index) {
-                          final task = visible[index];
-                          return TaskTile(
-                            task: task,
-                            onToggleDone: (v) => _toggleDone(task, v),
-                            onEdit: () => _openForm(existing: task),
-                            onDelete: () => _deleteWithUndo(task),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
+      drawer: ListDrawer(
+        uid: widget.uid,
+        userName: userName,
+        userEmail: user?.email ?? '',
+        lists: lists,
+        currentListId: _list?.id,
+        onSelect: (list) {
+          Navigator.pop(context); // close the drawer
+          _switchTo(list);
+        },
+        onCreateList: _createList,
+        onOpenAccount: () {
+          Navigator.pop(context);
+          _openAccount();
+        },
+        onLogOut: () {
+          Navigator.pop(context);
+          _logOut();
         },
       ),
+
+      floatingActionButton: lostAccess
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Task'),
+            ),
+
+      body: lostAccess ? _noAccess() : _taskList(shared: current != null),
+    );
+  }
+
+  /// Shown when a shared list on screen was deleted, or the owner removed
+  /// this user from it.
+  Widget _noAccess() {
+    return _Message(
+      icon: Icons.lock_outline,
+      title: 'You no longer have access to this list',
+      subtitle: 'The owner deleted it, or removed you from it.',
+      action: FilledButton.tonal(
+        onPressed: () => _switchTo(null),
+        child: const Text('Back to my Personal list'),
+      ),
+    );
+  }
+
+  Widget _taskList({required bool shared}) {
+    // StreamBuilder listens to Firestore. Every database change pushes a new
+    // snapshot and rebuilds this subtree — no manual refresh anywhere.
+    return StreamBuilder<List<Task>>(
+      stream: _tasks,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          // In a shared list, an error almost always means the rules just
+          // stopped allowing access (removed from the list).
+          if (shared) return _noAccess();
+          return _Message(
+            icon: Icons.cloud_off,
+            title: 'Could not load tasks',
+            subtitle: '${snapshot.error}',
+            isError: true,
+          );
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final allTasks = snapshot.data ?? const <Task>[];
+
+        if (allTasks.isEmpty) {
+          return _Message(
+            icon: Icons.checklist_rtl,
+            title: shared ? 'No tasks in this list yet' : 'No tasks yet',
+            subtitle: shared
+                ? 'Tap "Add Task" below. Everyone in this list will see it.'
+                : 'Tap "Add Task" below to create your first one.',
+          );
+        }
+
+        // Filtering and sorting happen here, in Dart — not in the query.
+        final visible = applyFilterAndSort(allTasks, _filter, _sort);
+
+        return Column(
+          children: [
+            _SortBar(
+              sort: _sort,
+              filter: _filter,
+              shown: visible.length,
+              total: allTasks.length,
+              onClearFilters: () =>
+                  setState(() => _filter = const FilterState()),
+            ),
+            Expanded(
+              child: visible.isEmpty
+                  ? _Message(
+                      icon: Icons.filter_alt_off,
+                      title: 'No tasks match your filters',
+                      subtitle: '${allTasks.length} task(s) are hidden.',
+                      action: FilledButton.tonal(
+                        onPressed: () =>
+                            setState(() => _filter = const FilterState()),
+                        child: const Text('Clear filters'),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 88),
+                      itemCount: visible.length,
+                      itemBuilder: (context, index) {
+                        final task = visible[index];
+                        return TaskTile(
+                          task: task,
+                          onToggleDone: (v) => _toggleDone(task, v),
+                          onEdit: () => _openForm(existing: task),
+                          onDelete: () => _deleteWithUndo(task),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -326,23 +521,22 @@ class _Message extends StatelessWidget {
 }
 
 /// The signed-in user's initials in the AppBar, so it is always obvious whose
-/// session this is. The task list is opened from the Profile page, so tapping
-/// this simply goes back to it.
+/// session this is. Tapping it opens the account page.
 class _AccountButton extends StatelessWidget {
-  const _AccountButton({required this.user});
+  const _AccountButton({required this.name, required this.onPressed});
 
-  final User? user;
+  final String name;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final name = nameToShow(displayName: user?.displayName, email: user?.email);
 
     return Padding(
       padding: const EdgeInsets.only(right: 4),
       child: IconButton(
         tooltip: 'Signed in as $name. Open my account',
-        onPressed: () => Navigator.pop(context),
+        onPressed: onPressed,
         icon: CircleAvatar(
           radius: 15,
           backgroundColor: scheme.onPrimary,

@@ -44,6 +44,10 @@ enum TaskTag {
 
 /// A single to-do item.
 ///
+/// Every task belongs to exactly one account: [ownerId] holds that account's
+/// UID, like a foreign key pointing at the user. The security rules compare it
+/// with the signed-in user on every request (see firestore.rules).
+///
 /// THIS CLASS IS THE ONLY SCHEMA THIS APP HAS.
 /// Firestore is schemaless — it will happily store a document with a misspelled
 /// field or a missing due date. The guarantee that every task has the same
@@ -56,6 +60,7 @@ class Task {
     required this.priority,
     required this.tag,
     required this.isDone,
+    required this.ownerId,
     this.createdAt,
   });
 
@@ -70,6 +75,10 @@ class Task {
   final Priority priority;
   final TaskTag tag;
   final bool isDone;
+
+  /// The UID of the account that owns this task. In a shared list, it's the
+  /// member who created it. Never changes after the task is created.
+  final String ownerId;
 
   /// Nullable on purpose. It is written with `FieldValue.serverTimestamp()`,
   /// which the *server* fills in. For a few milliseconds after a write the
@@ -88,6 +97,7 @@ class Task {
       priority: Priority.fromValue(data['priority'] as String?),
       tag: TaskTag.fromValue(data['tag'] as String?),
       isDone: (data['isDone'] as bool?) ?? false,
+      ownerId: (data['ownerId'] as String?) ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     );
   }
@@ -102,6 +112,7 @@ class Task {
         'priority': priority.value,
         'tag': tag.value,
         'isDone': isDone,
+        'ownerId': ownerId,
         // Only included when we already know it (i.e. restoring a deleted
         // task). A brand-new task gets a server timestamp instead.
         if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
@@ -121,6 +132,7 @@ class Task {
       priority: priority ?? this.priority,
       tag: tag ?? this.tag,
       isDone: isDone ?? this.isDone,
+      ownerId: ownerId,
       createdAt: createdAt,
     );
   }

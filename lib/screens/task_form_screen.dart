@@ -10,10 +10,14 @@ import '../theme.dart';
 /// If [existing] is null we are adding a new task; otherwise we are editing
 /// that task. Sharing the screen means the validation rules and the field
 /// layout can never drift apart between "add" and "edit".
+///
+/// [service] decides WHERE the task is saved: the user's Personal list or a
+/// shared list. HomeScreen passes in the service for the list on screen.
 class TaskFormScreen extends StatefulWidget {
-  const TaskFormScreen({super.key, this.existing});
+  const TaskFormScreen({super.key, this.existing, required this.service});
 
   final Task? existing;
+  final TaskService service;
 
   @override
   State<TaskFormScreen> createState() => _TaskFormScreenState();
@@ -21,7 +25,7 @@ class TaskFormScreen extends StatefulWidget {
 
 class _TaskFormScreenState extends State<TaskFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _service = TaskService();
+  TaskService get _service => widget.service;
 
   late final TextEditingController _titleController =
       TextEditingController(text: widget.existing?.title ?? '');

@@ -8,13 +8,13 @@ import '../theme.dart';
 import 'change_email_screen.dart';
 import 'change_password_screen.dart';
 import 'edit_name_screen.dart';
-import 'home_screen.dart';
 
-/// The protected page every sign-in lands on: "Hello, `name`", the account's
-/// details and settings, a way into the task list, and Log out.
+/// The account page: "Hello, `name`", the account's details and settings,
+/// and Log out. Opened from the task list (the initials in the top bar, or
+/// "My account" in the drawer); Back returns to the tasks.
 ///
-/// It only ever exists while someone is signed in, because AuthGate is the
-/// only thing that creates it.
+/// It can only be reached from screens that exist while someone is signed
+/// in, so it is protected by AuthGate like everything else.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -29,24 +29,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// name changes, so the greeting updates as soon as a new name is saved.
   late final Stream<User?> _userStream = _auth.userChanges();
 
-  late final AppLifecycleListener _lifecycle;
-
-  @override
-  void initState() {
-    super.initState();
-    // Look for changes made outside the app (a clicked email-change link, a
-    // password reset from another device): once when this page opens, and
-    // again every time the user switches back to the app.
-    _lifecycle = AppLifecycleListener(onResume: _refresh);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
-  }
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
-
+  /// Pull down to fetch the latest copy of the account. (AuthGate also does
+  /// this every time the app comes back to the foreground.)
   Future<void> _refresh() async {
     if (!mounted) return;
     // Captured first: if the session was revoked, this page is about to be
@@ -69,13 +53,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // AuthGate now swaps in the sign-in screen.
     messenger.showSnackBar(
       const SnackBar(content: Text('You have been logged out.')),
-    );
-  }
-
-  void _openTasks() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
 
@@ -157,16 +134,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Chip(
                 avatar: Icon(Icons.verified_user, size: 18, color: kLowColor),
                 label: Text('Signed in'),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            FilledButton.icon(
-              onPressed: _openTasks,
-              icon: const Icon(Icons.checklist),
-              label: const Text('Open My Tasks'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
               ),
             ),
             const SizedBox(height: 32),

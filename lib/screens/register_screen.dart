@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../logic/auth_errors.dart';
 import '../logic/validators.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/password_field.dart';
 import '../widgets/submit_button.dart';
@@ -55,6 +56,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
       );
       TextInput.finishAutofillContext();
+
+      // List the new account (now with its name) in the user directory, so
+      // others can add it to shared lists. Best effort: AuthGate already
+      // tried once at sign-in, and tries again on every future sign-in.
+      final user = _auth.currentUser;
+      if (user != null) {
+        try {
+          await UserService().syncProfile(user);
+        } catch (_) {}
+      }
 
       messenger.showSnackBar(
         SnackBar(
