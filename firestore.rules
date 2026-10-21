@@ -1,44 +1,117 @@
 rules_version = '2';
 
-// Security rules for the CMSC 128 My Tasks app (Lab 2: accounts).
+// Security rules for the CMSC 128 My Tasks app (Lab 3: user-based access control).
 //
 // WHY THIS FILE EXISTS
 // --------------------
 // Firestore config (API key, app ID) is public by design — it ships inside
 // every compiled copy of the app and cannot be hidden. These rules, not the
 // API key, are what actually control who may read and write the database.
-// Google's servers check them on EVERY request, so a modified app cannot skip
-// them the way it could skip a check written in Dart.
+// Google's servers check them on EVERY request, so a modified app — or someone
+// calling Firestore directly with a stolen document ID — cannot skip them.
+// This is the "backend" ownership check the Lab 3 brief asks for.
 //
 // To apply changes made here:
 //   firebase deploy --only firestore:rules --project jp-todo
-// or paste the contents into Firebase Console -> Firestore Database -> Rules.
+// To test them locally (needs Java):
+//   firebase emulators:exec --only firestore --project demo-my-tasks "npm --prefix rules-tests test"
 //
-// WHERE ARE THE ACCOUNTS?
-// -----------------------
-// Not in Firestore. Accounts (UID, email, display name, password hash) live in
-// Firebase Authentication, which has its own storage and is not governed by
-// this file. Firestore only sees the result: `request.auth` is filled in when
-// the request comes from a signed-in user, and is null otherwise.
+// WHERE ARE THE PASSWORDS?
+// ------------------------
+// Not in Firestore. Accounts (UID, email, password hash) live in Firebase
+// Authentication. Firestore only sees the result: `request.auth` is filled in
+// from the signed-in user's ID token, and is null for signed-out requests.
+//
+// RULES ARE NOT FILTERS
+// ---------------------
+// For a query, Firestore checks that the rule would hold for EVERY document the
+// query could return. So the app must ask "tasks where ownerId == me"; asking
+// for all tasks is refused outright, even if some of them are yours.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // True when the signed-in user is the account `uid`.
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------- users
+    // A small public profile per account, so members of a shared list can see
+    // each other's names. One document per account; the document ID is the UID.
+    match /users/{userId} {
+      allow get: if signedIn();            // read ONE profile, by its ID
+      allow list: if false;                // never list every profile
+      allow create, update: if isUser(userId)
+                            && request.resource.data.email == request.auth.token.email;
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------------- emails
+    // Lookup table: an exact email -> that account's UID. Lets an owner add a
+    // member by email without being able to list everyone's email.
+    match /emails/{email} {
+      allow get: if signedIn();            // look up ONE exact email
+      allow list: if false;                // never list every email
+      allow create, update: if signedIn()
+                            && email == request.auth.token.email.lower()
+                            && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ------------------------------------------------------- personal tasks
+    // Every personal task stores its owner's UID in `ownerId`.
     match /tasks/{taskId} {
-      // Lab 2: only signed-in users may read or write tasks. The app already
-      // hides the task list until someone signs in; this rule makes the
-      // server enforce the same thing, so a request without a valid sign-in
-      // token is rejected even if it does not come from our app.
-      //
-      // All signed-in users still share one list. Lab 3 (owner-based access
-      // control) gives every task an `ownerId` equal to its creator's UID and
-      // tightens this to:
-      //
-      //   allow read, update, delete: if request.auth != null
-      //                               && request.auth.uid == resource.data.ownerId;
-      //   allow create: if request.auth != null
-      //              && request.auth.uid == request.resource.data.ownerId;
-      allow read, write: if request.auth != null;
+      // Read or delete: only the task's owner. `resource` is the task as it is
+      // stored now, so a guessed or changed task ID still fails (no IDOR).
+      allow read, delete: if isUser(resource.data.ownerId);
+
+      // Create: only in your own name. `request.resource` is the task being written.
+      allow create: if isUser(request.resource.data.ownerId);
+
+      // Update: only the owner, and the owner can never be changed.
+      allow update: if isUser(resource.data.ownerId)
+                    && request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    // --------------------------------------------------------- shared lists
+    // `memberIds` holds the UID of every member, including the owner.
+    match /lists/{listId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+
+      // Create: in your own name, with yourself as a member.
+      allow create: if isUser(request.resource.data.ownerId)
+                    && request.auth.uid in request.resource.data.memberIds;
+
+      // Rename or change members: owner only. The owner can't hand the list
+      // away, and can't remove themselves from it.
+      allow update: if isUser(resource.data.ownerId)
+                    && request.resource.data.ownerId == resource.data.ownerId
+                    && request.auth.uid in request.resource.data.memberIds;
+
+      allow delete: if isUser(resource.data.ownerId);
+
+      // ------------------------------------------- tasks in a shared list
+      // Membership is checked against the parent list, read fresh with get()
+      // on every request — removing someone from the list cuts them off at once.
+      function isMember() {
+        return signedIn()
+            && request.auth.uid in get(/databases/$(database)/documents/lists/$(listId)).data.memberIds;
+      }
+
+      match /tasks/{taskId} {
+        allow read, delete: if isMember();
+
+        // `ownerId` records who created the task, and it must be the truth.
+        allow create: if isMember() && request.resource.data.ownerId == request.auth.uid;
+
+        // Any member may edit (it's a collaborative list), but not rewrite who created it.
+        allow update: if isMember() && request.resource.data.ownerId == resource.data.ownerId;
+      }
     }
 
     // Anything not matched above is denied. Firestore rules do not cascade,
